@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>语音唤醒与识别工具</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 600px;
+            width: 100%;
+            padding: 40px;
+        }
+        
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 28px;
+        }
+        
+        .status {
+            text-align: center;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        
+        .status.listening {
+            background: #4CAF50;
+            color: white;
+            animation: pulse 1.5s infinite;
+        }
+        
+        .status.not-listening {
+            background: #f5f5f5;
+            color: #666;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+        }
+        
+        .button {
+            width: 100%;
+            padding: 15px 30px;
+            font-size: 18px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+        
+        .button.start {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .button.start:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(76, 175, 80, 0.3);
+        }
+        
+        .button.stop {
+            background: #f44336;
+            color: white;
+        }
+        
+        .button.stop:hover {
+            background: #da190b;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(244, 67, 54, 0.3);
+        }
+        
+        .result {
+            background: #f9f9f9;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            padding: 20px;
+            min-height: 100px;
+            margin-bottom: 20px;
+        }
+        
+        .result h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+        
+        .result p {
+            color: #666;
+            line-height: 1.6;
+            font-size: 16px;
+        }
+        
+        .result p.placeholder {
+            color: #999;
+            font-style: italic;
+        }
+        
+        .info {
+            background: #e3f2fd;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+        
+        .info p {
+            color: #1976D2;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        
+        .wake-words {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .wake-word {
+            background: #e0e0e0;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            color: #333;
+        }
+        
+        .wake-word.active {
+            background: #4CAF50;
+            color: white;
+            animation: pulse 1s infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎤 语音唤醒与识别工具</h1>
+        
+        <div class="info">
+            <p>使用浏览器内置的 Web Speech API 进行语音识别。支持中文和英文，无需安装任何模型。</p>
+        </div>
+        
+        <div class="wake-words">
+            <div class="wake-word" id="wake-word-1">小爱同学</div>
+            <div class="wake-word" id="wake-word-2">你好小爱</div>
+            <div class="wake-word" id="wake-word-3">唤醒</div>
+        </div>
+        
+        <div class="status not-listening" id="status">
+            点击"开始监听"按钮开始语音识别
+        </div>
+        
+        <button class="button start" id="startBtn" onclick="startListening()">
+            🎤 开始监听
+        </button>
+        
+        <button class="button stop" id="stopBtn" onclick="stopListening()" style="display: none;">
+            ⏹️ 停止监听
+        </button>
+        
+        <div class="result">
+            <h3>识别结果：</h3>
+            <p class="placeholder" id="result">等待语音输入...</p>
+        </div>
+    </div>
+
+    <script>
+        let recognition;
+        let isListening = false;
+        const wakeWords = ['小爱同学', '你好小爱', '唤醒'];
+        
+        function initSpeechRecognition() {
+            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                document.getElementById('status').innerHTML = '您的浏览器不支持语音识别功能';
+                document.getElementById('status').classList.remove('listening');
+                document.getElementById('status').classList.add('not-listening');
+                return false;
+            }
+            
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            recognition.lang = 'zh-CN';
+            
+            recognition.onstart = function() {
+                isListening = true;
+                document.getElementById('status').innerHTML = '正在监听... 请说话';
+                document.getElementById('status').classList.remove('not-listening');
+                document.getElementById('status').classList.add('listening');
+                document.getElementById('startBtn').style.display = 'none';
+                document.getElementById('stopBtn').style.display = 'block';
+            };
+            
+            recognition.onend = function() {
+                if (isListening) {
+                    recognition.start();
+                } else {
+                    document.getElementById('status').innerHTML = '已停止监听';
+                    document.getElementById('status').classList.remove('listening');
+                    document.getElementById('status').classList.add('not-listening');
+                    document.getElementById('startBtn').style.display = 'block';
+                    document.getElementById('stopBtn').style.display = 'none';
+                }
+            };
+            
+            recognition.onresult = function(event) {
+                let finalTranscript = '';
+                let interimTranscript = '';
+                
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) {
+                        finalTranscript += event.results[i][0].transcript;
+                    } else {
+                        interimTranscript += event.results[i][0].transcript;
+                    }
+                }
+                
+                const resultElement = document.getElementById('result');
+                if (finalTranscript) {
+                    resultElement.innerHTML = finalTranscript;
+                    resultElement.classList.remove('placeholder');
+                    checkWakeWords(finalTranscript);
+                } else if (interimTranscript) {
+                    resultElement.innerHTML = interimTranscript + '...';
+                    resultElement.classList.remove('placeholder');
+                }
+            };
+            
+            recognition.onerror = function(event) {
+                console.error('语音识别错误:', event.error);
+                document.getElementById('status').innerHTML = '错误: ' + event.error;
+                document.getElementById('status').classList.remove('listening');
+                document.getElementById('status').classList.add('not-listening');
+            };
+            
+            return true;
+        }
+        
+        function checkWakeWords(text) {
+            wakeWords.forEach((word, index) => {
+                const element = document.getElementById('wake-word-' + (index + 1));
+                if (text.includes(word)) {
+                    element.classList.add('active');
+                    setTimeout(() => {
+                        element.classList.remove('active');
+                    }, 2000);
+                    console.log('检测到唤醒词: ' + word);
+                }
+            });
+        }
+        
+        function startListening() {
+            if (!recognition) {
+                if (!initSpeechRecognition()) {
+                    return;
+                }
+            }
+            
+            try {
+                recognition.start();
+            } catch (e) {
+                console.error('启动语音识别失败:', e);
+            }
+        }
+        
+        function stopListening() {
+            isListening = false;
+            if (recognition) {
+                recognition.stop();
+            }
+        }
+        
+        window.onload = function() {
+            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                document.getElementById('status').innerHTML = '您的浏览器不支持语音识别功能，请使用 Chrome 或 Edge 浏览器';
+            }
+        };
+    </script>
+</body>
+</html>

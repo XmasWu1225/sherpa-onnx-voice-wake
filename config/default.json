@@ -1,0 +1,19 @@
+{
+  "kws": {
+    "model_dir": "./models/kws",
+    "keywords": ["小爱同学", "你好小爱"],
+    "sample_rate": 16000,
+    "device": "default"
+  },
+  "asr": {
+    "model_dir": "./models/asr",
+    "use_vad": true,
+    "sample_rate": 16000,
+    "device": "default",
+    "vad_model_dir": "./models/vad"
+  },
+  "download": {
+    "model_dir": "./models",
+    "asr_model_type": "paraformer"
+  }
+}
